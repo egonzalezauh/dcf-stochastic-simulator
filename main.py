@@ -377,54 +377,8 @@ def run_valuation_engine(ticker: str, n_simulations: int = 10000, scenario: dict
     logger.info(f"Valor Esperado 10 Años: ${target_10y:.2f} (Retorno: {implied_return_10y:+.2%})")
 
 
-    # =========================================================================
-    # FASE 7: RENDERIZACIÓN VISUAL (KDE Density Curve)
-    # =========================================================================
-    logger.info("--- Fase 7: Visualización Kernel ---")
-    
-    plt.figure(figsize=(12, 6))
-    
-    ax = sns.histplot(valid_prices, kde=True, color='darkblue', stat="density", linewidth=0)
-    
+    # Calculamos el potencial de retorno respecto al Precio Justo (P50)
     implied_return_spot = (p50 / current_price) - 1.0
-    
-    plt.axvline(x=p10, color='red', linestyle='--', linewidth=2, label=f'Peor Escenario (P10): ${p10:.2f}')
-    plt.axvline(x=p50, color='green', linestyle='-', linewidth=3, label=f'Valor Justo Central (P50): ${p50:.2f}')
-    plt.axvline(x=p90, color='red', linestyle='--', linewidth=2, label=f'Mejor Escenario (P90): ${p90:.2f}')
-    
-    plt.axvline(x=current_price, color='black', linestyle=':', linewidth=2.5, label=f'Precio Spot Actual: ${current_price:.2f}')
-    
-    plt.title(f'Distribución Estocástica UFCF 10 Años (10k Sim.) - {ticker.upper()}', fontsize=16, fontweight='bold')
-    plt.xlabel('Precio Justo Intrínseco Formulado por Share ($)', fontsize=12)
-    plt.ylabel('Densidad Estocástica', fontsize=12)
-    plt.legend(loc='upper right')
-    
-    rendimiento_text = f"Potencial Inmediato (Spot -> P50): {implied_return_spot:+.2%}"
-    text_color = 'green' if implied_return_spot > 0 else 'red'
-    plt.text(0.02, 0.95, rendimiento_text, transform=plt.gca().transAxes, 
-             fontsize=12, fontweight='bold', color=text_color, verticalalignment='top',
-             bbox=dict(facecolor='white', alpha=0.9, edgecolor='black', boxstyle='round,pad=0.5'))
-             
-    # Agregar proyecciones a recuadro flotante
-    stats_text = (
-        f"Proyecciones a Valor Esperado:\n"
-        f"Target 1 Año:  ${target_1y:.2f} ({implied_return_1y:+.1%})\n"
-        f"Target 5 Años: ${target_5y:.2f} ({implied_return_5y:+.1%})\n"
-        f"Target 10 Años: ${target_10y:.2f} ({implied_return_10y:+.1%})"
-    )
-    plt.text(0.02, 0.82, stats_text, transform=plt.gca().transAxes, 
-             fontsize=10, fontweight='bold', color='black', verticalalignment='top',
-             bbox=dict(facecolor='white', alpha=0.9, edgecolor='gray', boxstyle='round,pad=0.5'))
-             
-    p99 = np.percentile(valid_prices, 99)
-    plt.xlim(max(0, p10 * 0.5), p99 * 1.2)
-    
-    img_name = f'valuation_distribution_{ticker}.png'
-    plt.tight_layout()
-    plt.savefig(img_name, dpi=300)
-    logger.info(f"Gráfico renderizado guardado como {img_name}.")
-    
-    plt.close()
     
     return {
         "ticker": ticker.upper(),
