@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import logging
 from typing import Optional, Dict
+import streamlit as st
 
 # Configuración de logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -348,6 +349,7 @@ def get_forward_consensus(ticker_symbol: str) -> Dict[str, any]:
             'trailing_pe': 0.0
         }
 
+@st.cache_data(ttl=3600, show_spinner=False)
 def get_full_company_data(ticker_symbol: str) -> Dict[str, any]:
     """
     Función envoltorio para obtener todos los datos principales de una empresa
@@ -361,13 +363,13 @@ def get_full_company_data(ticker_symbol: str) -> Dict[str, any]:
     # Extraemos el sector (lo necesitamos para métricas dinámicas de valoración)
     try:
         ticker_obj = yf.Ticker(ticker_symbol)
-        sector = ticker_obj.info.get('sector', 'Unknown')
+        info = ticker_obj.info
+        sector = info.get('sector', 'Unknown')
+        beta = info.get('beta', 1.0)
     except Exception as e:
-        logger.warning(f"[{ticker_symbol}] No se pudo extraer el sector: {e}")
+        logger.warning(f"[{ticker_symbol}] No se pudo extraer sector/beta: {e}")
         sector = 'Unknown'
-    
-    financials_df = get_financials(ticker_symbol)
-    price = get_current_price(ticker_symbol)
+        beta = 1.0
     
     # El price se pasa activamente a las shares para el firewall de Stock Splits
     shares = get_shares_outstanding(ticker_symbol, price)
@@ -383,7 +385,8 @@ def get_full_company_data(ticker_symbol: str) -> Dict[str, any]:
         "sbc_history": sbc_history,
         "historical_buyback_yield": historical_buyback_yield,
         "forward_consensus": forward_consensus,
-        "sector": sector
+        "sector": sector,
+        "beta": beta
     }
 
 if __name__ == "__main__":

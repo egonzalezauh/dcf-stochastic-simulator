@@ -2,6 +2,7 @@ import os
 import logging
 from dotenv import load_dotenv
 from fredapi import Fred
+import streamlit as st
 
 # Configuración de Logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -21,6 +22,7 @@ else:
         logger.error(f"Error inicializando el cliente de FRED API: {e}")
         fred = None
 
+@st.cache_data(ttl=21600, show_spinner=False)
 def get_risk_free_rate(fallback_rate: float = 0.042) -> float:
     """
     Extrae la Tasa Libre de Riesgo (Risk-Free Rate) actual desde la FRED 
@@ -47,6 +49,7 @@ def get_risk_free_rate(fallback_rate: float = 0.042) -> float:
                        f"Usando fallback asumido del {fallback_rate:.2%}.")
         return fallback_rate
 
+@st.cache_data(ttl=21600, show_spinner=False)
 def get_terminal_growth_rate(fallback_rate: float = 0.025) -> float:
     """
     Extrae la Tasa de Inflación Esperada a 10 años desde la FRED (T10YIE)

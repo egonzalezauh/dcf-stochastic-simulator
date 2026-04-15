@@ -61,11 +61,8 @@ def run_valuation_engine(ticker: str, n_simulations: int = 10000, scenario: dict
     
     interest_expense = abs(get_fin_val('Interest Expense', 0.0))
     
-    # Extraemos Beta usando yf directamente (fallback a 1.0 si falla)
-    try:
-        raw_beta = yf.Ticker(ticker).info.get('beta', 1.0)
-    except:
-        raw_beta = 1.0
+    # Extraemos Beta del diccionario de datos cacheados
+    raw_beta = data.get('beta', 1.0)
         
     # [NUEVO] Tasa Máginal Dinámica (Effective Tax Rate)
     try:
