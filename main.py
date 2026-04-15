@@ -194,6 +194,8 @@ def run_valuation_engine(ticker: str, n_simulations: int = 10000, scenario: dict
     projected_ebitda_n = np.zeros(n_simulations)
     present_value_of_fcfs = np.zeros(n_simulations)
     
+    projected_net_income_y10 = np.zeros(n_simulations) # Para valorar por P/E
+    
     current_sbc = sbc_history.iloc[0] if not sbc_history.empty else 0.0
     macro_g = get_terminal_growth_rate()
 
@@ -227,13 +229,17 @@ def run_valuation_engine(ticker: str, n_simulations: int = 10000, scenario: dict
             if scenario and scenario.get("active"):
                 ops = scenario.get("overrides", {})
                 
-                # 1. Castigo de Crecimiento
+                # 1. Shock de Crecimiento
                 if "revenue_growth" in ops and year in ops["revenue_growth"].get("years", []):
                     current_g = ops["revenue_growth"]["value"] 
                 
-                # 2. Castigo de Retención (Márgenes)
+                # 2. Shock de Márgenes
                 if "ebit_margin" in ops and year in ops["ebit_margin"].get("years", []):
                     path_margin += ops["ebit_margin"]["value_modifier"] 
+                    
+                # 3. Shock de CapEx
+                if "capex_margin" in ops and year in ops["capex_margin"].get("years", []):
+                    current_capex_m += ops["capex_margin"]["value_modifier"]
             # =========================================================
 
             current_rev = current_rev * (1 + current_g)
@@ -256,6 +262,10 @@ def run_valuation_engine(ticker: str, n_simulations: int = 10000, scenario: dict
             if year == 10:
                 projected_fcf_n[i] = current_fcf
                 projected_ebitda_n[i] = current_ebitda
+                
+                # Para la valoración relativa P/E (Net Income del año 10)
+                current_net_income = max(0.0, (current_ebit - interest_expense) * (1 - tax_rate))
+                projected_net_income_y10[i] = current_net_income
 
         present_value_of_fcfs[i] = path_pv_fcfs
 
@@ -323,6 +333,7 @@ def run_valuation_engine(ticker: str, n_simulations: int = 10000, scenario: dict
     assumed_options = base_shares * 0.05
     assumed_strike = current_price * 0.50
     simulated_prices = np.zeros(n_simulations)
+    simulated_pe_prices = np.zeros(n_simulations) # Precios de la valoración por P/E
     
     for i in range(n_simulations):
         ev = enterprise_values[i]
@@ -330,6 +341,7 @@ def run_valuation_engine(ticker: str, n_simulations: int = 10000, scenario: dict
         # El balance de reclamaciones es EV - Deuda - Minority Interest
         if (ev - current_net_debt_and_minority) <= 0:
             simulated_prices[i] = 0.0
+            simulated_pe_prices[i] = 0.0
             continue
             
         try:
@@ -345,8 +357,15 @@ def run_valuation_engine(ticker: str, n_simulations: int = 10000, scenario: dict
             exact_diluted_shares = future_base_shares 
             
         simulated_prices[i] = max(0.0, (ev - current_net_debt_and_minority) / exact_diluted_shares)
+        
+        # MODELO P/E: Valor Futuro = EPS Año 10 * Múltiplo Simulado
+        eps_y10 = max(0.001, projected_net_income_y10[i] / exact_diluted_shares)
+        future_price_pe = eps_y10 * sim_exit_multiples[i]
+        # Descontar a valor presente usando Costo de Capital (ke)
+        simulated_pe_prices[i] = future_price_pe / ((1 + ke) ** 10)
 
     valid_prices = simulated_prices[(~np.isnan(simulated_prices)) & (~np.isinf(simulated_prices))]
+    valid_pe_prices = simulated_pe_prices[(~np.isnan(simulated_pe_prices)) & (~np.isinf(simulated_pe_prices))]
 
     if len(valid_prices) == 0:
          logger.error("Todas las simulaciones colapsaron a valores no válidos. Verifica parámetros de entrada.")
@@ -355,6 +374,10 @@ def run_valuation_engine(ticker: str, n_simulations: int = 10000, scenario: dict
     p10 = np.percentile(valid_prices, 10)
     p50 = np.percentile(valid_prices, 50)
     p90 = np.percentile(valid_prices, 90)
+
+    pe_p10 = np.percentile(valid_pe_prices, 10) if len(valid_pe_prices) > 0 else 0.0
+    pe_p50 = np.percentile(valid_pe_prices, 50) if len(valid_pe_prices) > 0 else 0.0
+    pe_p90 = np.percentile(valid_pe_prices, 90) if len(valid_pe_prices) > 0 else 0.0
 
     # [NUEVO] TARGETS TEMPORALES Y RENDIMIENTO BAJO KE (Costo de Oportunidad)
     target_1y = p50 * ((1 + ke) ** 1)
@@ -379,21 +402,61 @@ def run_valuation_engine(ticker: str, n_simulations: int = 10000, scenario: dict
 
     # Calculamos el potencial de retorno respecto al Precio Justo (P50)
     implied_return_spot = (p50 / current_price) - 1.0
+    implied_return_pe = (pe_p50 / current_price) - 1.0
     
+    # =========================================================================
+    # FASE 6.5: DATOS CRUDOS EV/EBITDA (para modelo de valoración relativa)
+    # =========================================================================
+    # EBITDA TTM: extraemos del financiero más reciente Year 0
+    ebitda_ttm = get_fin_val('EBITDA', 0.0)
+    if ebitda_ttm == 0.0:
+        # Fallback: EBIT + D&A del año más reciente
+        ebit_y0 = get_fin_val('EBIT', 0.0)
+        da_y0   = get_fin_val('Depreciation And Amortization', 0.0) or get_fin_val('Reconciled Depreciation', 0.0)
+        ebitda_ttm = ebit_y0 + da_y0
+
+    # EV actual = Market Cap + Total Debt - Cash
+    ev_current = market_cap + current_total_debt - cash_equiv
+    ev_ebitda_current = (ev_current / ebitda_ttm) if ebitda_ttm > 0 else 0.0
+
+    logger.info(f"[EV/EBITDA] EBITDA TTM: ${ebitda_ttm/1e9:.2f}B | EV actual: ${ev_current/1e9:.2f}B | Múltiplo actual: {ev_ebitda_current:.1f}x")
+
     return {
         "ticker": ticker.upper(),
         "valid_prices": valid_prices,
+        "valid_pe_prices": valid_pe_prices,
         "current_price": current_price,
         "p10": p10,
         "p50": p50,
         "p90": p90,
+        "pe_p10": pe_p10,
+        "pe_p50": pe_p50,
+        "pe_p90": pe_p90,
         "target_1y": target_1y,
         "target_5y": target_5y,
         "target_10y": target_10y,
         "implied_return_1y": implied_return_1y,
         "implied_return_5y": implied_return_5y,
         "implied_return_10y": implied_return_10y,
-        "implied_return_spot": implied_return_spot
+        "implied_return_spot": implied_return_spot,
+        "implied_return_pe": implied_return_pe,
+        "ke": ke,
+        "wacc": wacc,
+        "macro_multiple": base_macro_multiple,
+        # Datos crudos para el modelo P/E simple
+        "forward_eps": forward_consensus.get("forward_eps", 0.0),
+        "trailing_eps": forward_consensus.get("trailing_eps", 0.0),
+        "trailing_pe": forward_consensus.get("trailing_pe", 0.0),
+        "forward_pe": forward_consensus.get("forward_pe", 0.0),
+        # Datos crudos para el modelo EV/EBITDA
+        "ebitda_ttm": ebitda_ttm,
+        "ev_current": ev_current,
+        "ev_ebitda_current": ev_ebitda_current,
+        "total_debt": current_total_debt,
+        "cash_and_equiv": cash_equiv,
+        "shares_outstanding": base_shares,
+        "net_debt": current_net_debt,
+        "sector": sector,
     }
 
 if __name__ == "__main__":

@@ -1,5 +1,56 @@
+# =============================================
+# ENTORNO VIRTUAL Y DEPENDENCIAS LOCALES
+# =============================================
 env/
-__pycache__/
+venv/
+.venv/
 *.pyc
+__pycache__/
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# =============================================
+# VARIABLES DE ENTORNO Y SECRETOS
+# =============================================
 .env
+.env.local
+secrets.toml
+.streamlit/secrets.toml
+
+# =============================================
+# BASE DE DATOS LOCAL (SQLite)
+# Streamlit Cloud es efímero: no puede persistir
+# archivos entre reinicios. La BD local solo
+# sirve para desarrollo. En producción se debe
+# usar una BD en la nube (Supabase, PlanetScale).
+# =============================================
+*.db
+*.sqlite
+*.sqlite3
+
+# =============================================
+# ARCHIVOS DE SISTEMA Y EDITORES
+# =============================================
 .DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/
+*.code-workspace
+
+# =============================================
+# ARCHIVOS TEMPORALES Y LOGS
+# =============================================
+*.log
+logs/
+scratch/
+*.tmp
+*.bak
+
+# =============================================
+# JUPYTER NOTEBOOKS (si los hay)
+# =============================================
+.ipynb_checkpoints/

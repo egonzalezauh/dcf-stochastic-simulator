@@ -316,28 +316,36 @@ def get_forward_consensus(ticker_symbol: str) -> Dict[str, any]:
         info = ticker.info
         
         forward_eps = info.get('forwardEps', 0.0)
+        trailing_eps = info.get('trailingEps', 0.0)
         revenue_growth = info.get('revenueGrowth', 0.0)
         forward_pe = info.get('forwardPE', 0.0)
+        trailing_pe = info.get('trailingPE', 0.0)
         
         # En caso de venir nulos de yfinance
         forward_eps = float(forward_eps) if forward_eps is not None else 0.0
+        trailing_eps = float(trailing_eps) if trailing_eps is not None else 0.0
         revenue_growth = float(revenue_growth) if revenue_growth is not None else 0.0
         forward_pe = float(forward_pe) if forward_pe is not None else 0.0
+        trailing_pe = float(trailing_pe) if trailing_pe is not None else 0.0
         
         if forward_eps > 0 and forward_pe > 0:
              logger.info(f"[{ticker_symbol}] Estimaciones Prospectivas de Consenso extraídas con éxito.")
              
         return {
             'forward_eps': forward_eps,
+            'trailing_eps': trailing_eps,
             'expected_revenue_growth': revenue_growth,
-            'forward_pe': forward_pe
+            'forward_pe': forward_pe,
+            'trailing_pe': trailing_pe
         }
     except Exception as e:
         logger.warning(f"[{ticker_symbol}] No se pudo extraer el consenso de analistas: {e}")
         return {
             'forward_eps': 0.0,
+            'trailing_eps': 0.0,
             'expected_revenue_growth': 0.0,
-            'forward_pe': 0.0
+            'forward_pe': 0.0,
+            'trailing_pe': 0.0
         }
 
 def get_full_company_data(ticker_symbol: str) -> Dict[str, any]:
