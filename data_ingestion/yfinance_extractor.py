@@ -147,7 +147,7 @@ def get_shares_outstanding(ticker_symbol: str, current_price: float) -> int:
     la capitalización de mercado con el precio spot actual.
     """
     try:
-        ticker = yf.Ticker(ticker_symbol, session=get_yf_session())
+        ticker = yf.Ticker(ticker_symbol)
         info = ticker.info
         
         reported_shares = None
@@ -246,7 +246,7 @@ def get_historical_share_reduction_yield(ticker_symbol: str) -> float:
          float: El yield de recompra de acciones estructurado como decimal (ej. 0.03 para 3%).
     """
     try:
-        ticker = yf.Ticker(ticker_symbol, session=get_yf_session())
+        ticker = yf.Ticker(ticker_symbol)
         
         # Acciones históricas promedio se encuentran en el Income Statement histórico de YF
         inc_stmt = ticker.financials
@@ -313,7 +313,7 @@ def get_forward_consensus(ticker_symbol: str) -> Dict[str, any]:
     en cero sin romper el pipeline principal.
     """
     try:
-        ticker = yf.Ticker(ticker_symbol, session=get_yf_session())
+        ticker = yf.Ticker(ticker_symbol)
         info = ticker.info
         
         forward_eps = info.get('forwardEps', 0.0)
