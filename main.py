@@ -123,10 +123,6 @@ def run_valuation_engine(ticker: str, n_simulations: int = 10000, scenario: dict
     rev_growth_series = rev_chronological.pct_change().dropna()
     rev_growth_hist = rev_growth_series.values
     
-    ebit_hist = financials.loc['EBIT'].iloc[::-1].values
-    margin_hist = ebit_hist / rev_chronological.values
-    margin_hist = np.nan_to_num(margin_hist, nan=0.0)
-    
     def get_hist_ratio(metric_names_list, revenues_array, absolute=True):
         for metric_name in metric_names_list:
             if metric_name in financials.index:
@@ -136,6 +132,9 @@ def run_valuation_engine(ticker: str, n_simulations: int = 10000, scenario: dict
                 return np.nan_to_num(vals / revenues_array, nan=0.0)
         return np.zeros_like(revenues_array)
 
+    ebit_names = ['EBIT', 'Operating Income', 'Operating Revenue']
+    margin_hist = get_hist_ratio(ebit_names, rev_chronological.values, absolute=False)
+    
     # Nombres posibles de las métricas en YF
     capex_names = ['Capital Expenditure', 'Capital Expenditures']
     da_names = ['Depreciation And Amortization', 'Reconciled Depreciation', 'Depreciation']
@@ -408,7 +407,7 @@ def run_valuation_engine(ticker: str, n_simulations: int = 10000, scenario: dict
     ebitda_ttm = get_fin_val('EBITDA', 0.0)
     if ebitda_ttm == 0.0:
         # Fallback: EBIT + D&A del año más reciente
-        ebit_y0 = get_fin_val('EBIT', 0.0)
+        ebit_y0 = get_fin_val('EBIT', 0.0) or get_fin_val('Operating Income', 0.0)
         da_y0   = get_fin_val('Depreciation And Amortization', 0.0) or get_fin_val('Reconciled Depreciation', 0.0)
         ebitda_ttm = ebit_y0 + da_y0
 
